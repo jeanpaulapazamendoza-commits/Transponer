@@ -169,6 +169,16 @@ def transponer_emparejado(df, columnas_fijas, grupos,
 
     # Unir todos los prefijos por (row_id + fijas + posicion)
     claves = id_vars + [nombre_posicion]
+
+    # Normalizar las columnas fijas a texto para evitar el error de "tipos
+    # mixtos" al ordenar durante el merge (numpy no puede ordenar una columna
+    # que mezcla números y texto). __row_id__ y la posición ya son enteros
+    # homogéneos, así que no hace falta tocarlos.
+    claves_a_normalizar = list(columnas_fijas)
+    for parcial in parciales:
+        for col in claves_a_normalizar:
+            parcial[col] = parcial[col].astype("string")
+
     resultado = parciales[0]
     for parcial in parciales[1:]:
         resultado = resultado.merge(parcial, on=claves, how="outer")
