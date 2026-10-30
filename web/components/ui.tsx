@@ -201,7 +201,12 @@ export function SelectorColumnas({
 }
 
 function celdaVisible(v: Tabla["filas"][number][string] | undefined) {
-  if (v instanceof Date) return v.toLocaleDateString("es-PE");
+  if (v instanceof Date) {
+    if (Number.isNaN(v.getTime())) return "";
+    const conHora = v.getHours() || v.getMinutes() || v.getSeconds();
+    const fecha = v.toLocaleDateString("es-PE");
+    return conHora ? `${fecha} ${v.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}` : fecha;
+  }
   // Sin separador de miles: un DNI o un año no deben verse como "7,654,321"
   if (typeof v === "number") return v.toLocaleString("es-PE", { maximumFractionDigits: 6, useGrouping: false });
   return aTexto(v ?? null);
@@ -287,6 +292,29 @@ export function Boton({
   );
 }
 
+/**
+ * Corre una descarga dejando pintar antes el «Generando…» (armar un Excel
+ * grande bloquea la página unos segundos) y convierte cualquier fallo en un
+ * mensaje visible en vez de un botón que no hace nada.
+ */
+export function useDescarga() {
+  const [generando, setGenerando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function correr(fn: () => void | Promise<void>) {
+    setError(null);
+    setGenerando(true);
+    try {
+      await new Promise((r) => setTimeout(r, 30));
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenerando(false);
+    }
+  }
+  return { generando, error, correr };
+}
+
 export function Descargas({
   tabla,
   archivo,
@@ -298,14 +326,21 @@ export function Descargas({
   hoja?: string;
   extra?: { nombre: string; tabla: Tabla }[];
 }) {
+  const { generando, error, correr } = useDescarga();
   return (
-    <div className="flex flex-wrap gap-2">
-      <Boton onClick={() => descargarExcel([{ nombre: hoja, tabla }, ...(extra ?? [])], archivo)}>
-        Descargar Excel
-      </Boton>
-      <Boton secundario onClick={() => descargarCsv(tabla, archivo)}>
-        Descargar CSV
-      </Boton>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-2">
+        <Boton
+          deshabilitado={generando}
+          onClick={() => correr(() => descargarExcel([{ nombre: hoja, tabla }, ...(extra ?? [])], archivo))}
+        >
+          {generando ? "Generando…" : "Descargar Excel"}
+        </Boton>
+        <Boton secundario deshabilitado={generando} onClick={() => correr(() => descargarCsv(tabla, archivo))}>
+          Descargar CSV
+        </Boton>
+      </div>
+      {error && <p className="max-w-sm text-xs text-aviso">{error}</p>}
     </div>
   );
 }

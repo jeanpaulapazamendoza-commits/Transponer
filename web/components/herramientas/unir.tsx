@@ -185,8 +185,13 @@ export function Unir() {
                       <td className="py-1.5 pr-3">{r.origen}</td>
                       <td className="py-1.5 pr-3 text-right tabular-nums">{r.filas.toLocaleString("es-PE")}</td>
                       <td className="py-1.5">
-                        {r.faltantes.length === 0 && r.descartadas.length === 0 && <span className="text-acento">Todo alineado</span>}
-                        {r.faltantes.length > 0 && <div className="text-aviso">Le faltan: {r.faltantes.join(", ")}</div>}
+                        {r.filas === 0 && (
+                          <div className="text-aviso">Sin filas de datos: ¿hoja vacía o encabezado en otra fila?</div>
+                        )}
+                        {r.filas > 0 && r.faltantes.length === 0 && r.descartadas.length === 0 && (
+                          <span className="text-acento">Todo alineado</span>
+                        )}
+                        {r.filas > 0 && r.faltantes.length > 0 && <div className="text-aviso">Le faltan: {r.faltantes.join(", ")}</div>}
                         {r.descartadas.length > 0 && <div className="text-suave">No pasaron: {r.descartadas.join(", ")}</div>}
                       </td>
                     </tr>

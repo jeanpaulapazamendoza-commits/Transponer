@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { desdeMatriz, nombresUnicos } from "../tabla";
+import { aTexto, desdeMatriz, nombresUnicos } from "../tabla";
 import {
   detectarGruposEmparejados,
   sugerirConfiguracion,
@@ -7,7 +7,7 @@ import {
   transponerSimple,
 } from "./transponer";
 import { unirTablas } from "./unir";
-import { cruzarTablas, type OpcionesCruce } from "./cruzar";
+import { claveNormalizada, cruzarTablas, type OpcionesCruce } from "./cruzar";
 import { limpiarTabla, textoANumero, type OpcionesLimpiar } from "./limpiar";
 import { dividirPorColumna, nombresHojaUnicos } from "./dividir";
 
@@ -20,6 +20,20 @@ describe("tabla", () => {
       "Columna 4",
       "A (3)",
     ]);
+  });
+
+  it("aguanta cientos de miles de filas", () => {
+    const matriz = [["A"], ...Array.from({ length: 300_000 }, (_, i) => [i])];
+    expect(desdeMatriz(matriz).filas).toHaveLength(300_000);
+  });
+
+  it("las fechas se escriben en hora local, sin la Z de UTC", () => {
+    // Así llegan de SheetJS: medianoche local, que en Lima son las 05:00 UTC.
+    expect(aTexto(new Date(2026, 4, 6))).toBe("2026-05-06");
+    expect(aTexto(new Date(2026, 4, 6, 14, 30))).toBe("2026-05-06 14:30");
+    expect(aTexto(new Date(2026, 4, 6, 14, 29, 59, 999))).toBe("2026-05-06 14:30");
+    expect(aTexto(new Date(2026, 4, 6, 8, 5, 9))).toBe("2026-05-06 08:05:09");
+    expect(aTexto(new Date(Number.NaN))).toBe("");
   });
 });
 
@@ -68,6 +82,28 @@ describe("transponer", () => {
       { Zona: "Norte", Dia: "Suma de Martes", Valor: 0 },
     ]);
   });
+
+  it("las columnas nuevas no pisan a las fijas que se llaman igual", () => {
+    const t = desdeMatriz([
+      ["Valor", "Variable", "Ene", "Feb"],
+      ["A", "x", 1, 2],
+    ]);
+    const r = transponerSimple(t, ["Valor", "Variable"], ["Ene", "Feb"]);
+    expect(r.columnas).toEqual(["Valor", "Variable", "Variable (2)", "Valor (2)"]);
+    expect(r.filas[0]).toEqual({ Valor: "A", Variable: "x", "Variable (2)": "Ene", "Valor (2)": 1 });
+    // Mismo nombre para las dos columnas nuevas
+    expect(transponerSimple(t, [], ["Ene"], "Dato", "Dato").columnas).toEqual(["Dato", "Dato (2)"]);
+  });
+
+  it("emparejado: una fija con el nombre de un grupo o de la posición no se pisa", () => {
+    const t = desdeMatriz([
+      ["P", "Posicion", "P 1", "P 2"],
+      ["fijo", "x", "a", "b"],
+    ]);
+    const r = transponerEmparejado(t, ["P", "Posicion"], detectarGruposEmparejados(t.columnas));
+    expect(r.columnas).toEqual(["P", "Posicion", "Posicion (2)", "P (2)"]);
+    expect(r.filas[1]).toEqual({ P: "fijo", Posicion: "x", "Posicion (2)": 2, "P (2)": "b" });
+  });
 });
 
 describe("unir", () => {
@@ -100,6 +136,17 @@ describe("unir", () => {
     );
     expect(tabla.columnas).toEqual(["Código", "Precio"]);
     expect(reporte[1].descartadas).toEqual(["Stock"]);
+  });
+
+  it("la columna de origen no pisa una columna 'Origen' de los archivos", () => {
+    const x = desdeMatriz([["Origen", "N"], ["Lima", 1]]);
+    const { tabla } = unirTablas([{ origen: "x.xlsx", tabla: x }], {
+      columnas: "todas",
+      ignorarMayusculas: true,
+      columnaOrigen: "Origen",
+    });
+    expect(tabla.columnas).toEqual(["Origen (2)", "Origen", "N"]);
+    expect(tabla.filas).toEqual([{ "Origen (2)": "x.xlsx", Origen: "Lima", N: 1 }]);
   });
 });
 
@@ -135,6 +182,24 @@ describe("cruzar", () => {
     const falt = cruzarTablas(a, b, { ...base, tipo: "faltantes" }).tabla;
     expect(falt.columnas).toEqual(["DNI", "Nombre"]);
     expect(falt.filas).toEqual([{ DNI: 789, Nombre: "Eva" }]);
+  });
+
+  it("cruzar de nuevo un resultado no pisa «¿Cruzó?» ni los sufijos (B)", () => {
+    const ya = desdeMatriz([["K", "X", "¿Cruzó?"], [1, "a", "Sí"]]);
+    const otra = desdeMatriz([["K", "X", "X (B)"], [1, "b", "c"]]);
+    const { tabla } = cruzarTablas(ya, otra, { ...base, claveA: "K", claveB: "K", traer: ["X", "X (B)"] });
+    expect(tabla.columnas).toEqual(["K", "X", "¿Cruzó?", "X (B)", "X (B) (B)", "¿Cruzó? (2)"]);
+    expect(tabla.filas[0]).toEqual({ K: 1, X: "a", "¿Cruzó?": "Sí", "X (B)": "b", "X (B) (B)": "c", "¿Cruzó? (2)": "Sí" });
+  });
+
+  it("una fecha cruza con la misma fecha escrita como texto", () => {
+    const conFecha = desdeMatriz([["Día", "Venta"], [new Date(2026, 4, 6), 10], [new Date(2026, 11, 25), 20]]);
+    const conTexto = desdeMatriz([["Día", "Feriado"], ["06/05/2026", "No"], ["25-12-2026", "Sí"], ["2026-01-01", "Sí"]]);
+    const { resumen } = cruzarTablas(conFecha, conTexto, { ...base, claveA: "Día", claveB: "Día", traer: ["Feriado"] });
+    expect(resumen.cruzadas).toBe(2);
+    expect(claveNormalizada("6/5/2026", base)).toBe("2026-05-06");
+    // Sin normalizar, el texto se compara tal cual
+    expect(claveNormalizada("06/05/2026", { normalizar: false, ignorarCerosIzquierda: false })).toBe("06/05/2026");
   });
 });
 

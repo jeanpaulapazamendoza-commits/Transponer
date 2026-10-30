@@ -4,7 +4,7 @@
  * que es justo lo que en Excel cuesta encontrar (#N/A escondidos).
  */
 
-import { aTexto, esVacio, type Fila, type Tabla } from "../tabla";
+import { aTexto, esVacio, nombreLibre, type Fila, type Tabla } from "../tabla";
 
 export type TipoCruce =
   /** Todas las filas de A, con lo de B si existe (BUSCARV). */
@@ -39,19 +39,26 @@ export function claveNormalizada(
   op: Pick<OpcionesCruce, "normalizar" | "ignorarCerosIzquierda">,
 ): string {
   let t = aTexto(v ?? null);
-  if (op.normalizar) t = t.trim().replace(/\s+/g, " ").toLowerCase();
+  if (op.normalizar) {
+    t = t.trim().replace(/\s+/g, " ").toLowerCase();
+    // Una fecha escrita como texto ("06/05/2026", día primero como en Perú)
+    // cruza con la misma fecha guardada como fecha ("2026-05-06").
+    const f = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(t);
+    if (f) t = `${f[3]}-${f[2].padStart(2, "0")}-${f[1].padStart(2, "0")}`;
+  }
   if (op.ignorarCerosIzquierda) t = t.replace(/^0+(?=.)/, "");
   return t;
 }
 
 export function cruzarTablas(a: Tabla, b: Tabla, op: OpcionesCruce) {
   // Columnas de B que chocan con nombres de A llevan sufijo " (B)".
+  const usados = new Set(a.columnas);
   const nombreEnResultado = new Map<string, string>();
   for (const c of op.traer) {
-    let n = a.columnas.includes(c) ? `${c} (B)` : c;
-    while (a.columnas.includes(n)) n = `${n} (B)`;
-    nombreEnResultado.set(c, n);
+    nombreEnResultado.set(c, nombreLibre(usados.has(c) ? `${c} (B)` : c, usados));
   }
+  // Cruzar un resultado que ya trae "¿Cruzó?" no debe pisarla.
+  const marca = nombreLibre(COLUMNA_CRUCE, usados);
 
   const indiceB = new Map<string, Fila[]>();
   let clavesDuplicadasB = 0;
@@ -73,7 +80,7 @@ export function cruzarTablas(a: Tabla, b: Tabla, op: OpcionesCruce) {
   const conB = (fa: Fila, fb: Fila | null): Fila => {
     const nueva: Fila = { ...fa };
     for (const c of op.traer) nueva[nombreEnResultado.get(c)!] = fb ? (fb[c] ?? null) : null;
-    if (op.marcarCruce) nueva[COLUMNA_CRUCE] = fb ? "Sí" : "No";
+    if (op.marcarCruce) nueva[marca] = fb ? "Sí" : "No";
     return nueva;
   };
 
@@ -102,7 +109,7 @@ export function cruzarTablas(a: Tabla, b: Tabla, op: OpcionesCruce) {
       const vacia: Fila = Object.fromEntries(a.columnas.map((c) => [c, null]));
       vacia[op.claveA] = fb[op.claveB] ?? null;
       const nueva = conB(vacia, fb);
-      if (op.marcarCruce) nueva[COLUMNA_CRUCE] = "Solo en B";
+      if (op.marcarCruce) nueva[marca] = "Solo en B";
       filas.push(nueva);
     }
   }
@@ -113,7 +120,7 @@ export function cruzarTablas(a: Tabla, b: Tabla, op: OpcionesCruce) {
       : [
           ...a.columnas,
           ...op.traer.map((c) => nombreEnResultado.get(c)!),
-          ...(op.marcarCruce ? [COLUMNA_CRUCE] : []),
+          ...(op.marcarCruce ? [marca] : []),
         ];
 
   return {

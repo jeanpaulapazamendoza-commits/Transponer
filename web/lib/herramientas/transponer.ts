@@ -9,7 +9,7 @@
  *                   -> "Posicion" + "P." + "Lt.".
  */
 
-import { esColumnaNumerica, esVacio, type Fila, type Tabla } from "../tabla";
+import { esColumnaNumerica, esVacio, nombreLibre, type Fila, type Tabla } from "../tabla";
 
 /** prefijo -> (número de posición -> nombre de columna original) */
 export type Grupos = Record<string, Record<number, string>>;
@@ -113,6 +113,10 @@ export function transponerSimple(
   nombreValor = "Valor",
   conservarVacios = false,
 ): Tabla {
+  // Si una columna fija ya se llama "Valor", la nueva sale "Valor (2)" en vez de pisarla.
+  const usados = new Set(columnasFijas);
+  const categoria = nombreLibre(nombreCategoria, usados);
+  const valor = nombreLibre(nombreValor, usados);
   const filas: Fila[] = [];
   for (const col of columnasATransponer) {
     for (const f of tabla.filas) {
@@ -120,12 +124,12 @@ export function transponerSimple(
       if (!conservarVacios && esVacio(v)) continue;
       const nueva: Fila = {};
       for (const c of columnasFijas) nueva[c] = f[c] ?? null;
-      nueva[nombreCategoria] = col;
-      nueva[nombreValor] = v;
+      nueva[categoria] = col;
+      nueva[valor] = v;
       filas.push(nueva);
     }
   }
-  return { columnas: [...columnasFijas, nombreCategoria, nombreValor], filas };
+  return { columnas: [...columnasFijas, categoria, valor], filas };
 }
 
 /**
@@ -144,6 +148,11 @@ export function transponerEmparejado(
     ...new Set(prefijos.flatMap((p) => Object.keys(grupos[p]).map(Number))),
   ].sort((a, b) => a - b);
 
+  // Una fija "P" junto al grupo "P. 1", "P. 2" chocaría con la columna "P" del resultado.
+  const usados = new Set(columnasFijas);
+  const posicion = nombreLibre(nombrePosicion, usados);
+  const nombres = prefijos.map((p) => nombreLibre(p, usados));
+
   const filas: Fila[] = [];
   for (const f of tabla.filas) {
     for (const pos of posiciones) {
@@ -154,10 +163,10 @@ export function transponerEmparejado(
       if (!conservarVacios && valores.every(esVacio)) continue;
       const nueva: Fila = {};
       for (const c of columnasFijas) nueva[c] = f[c] ?? null;
-      nueva[nombrePosicion] = pos;
-      prefijos.forEach((p, i) => (nueva[p] = valores[i]));
+      nueva[posicion] = pos;
+      nombres.forEach((n, i) => (nueva[n] = valores[i]));
       filas.push(nueva);
     }
   }
-  return { columnas: [...columnasFijas, nombrePosicion, ...prefijos], filas };
+  return { columnas: [...columnasFijas, posicion, ...nombres], filas };
 }

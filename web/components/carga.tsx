@@ -83,25 +83,36 @@ export function CargaTabla({
   const [cargando, setCargando] = useState(false);
   const avisar = useEffectEvent(onCambio);
 
+  // Lo que el usuario puede corregir aquí mismo: otra hoja u otra fila de encabezado.
+  const tabla = libro && hoja ? leerHoja(libro, hoja, filaEnc) : null;
+  const problema = !tabla
+    ? null
+    : tabla.columnas.length === 0
+      ? filaEnc > 1
+        ? `No hay nada desde la fila ${filaEnc} hacia abajo. Revisa la fila de encabezados.`
+        : "Esta hoja está vacía."
+      : tabla.filas.length === 0
+        ? `No hay filas de datos debajo del encabezado (fila ${filaEnc}).`
+        : null;
+
   useEffect(() => {
-    if (!libro || !hoja) {
+    if (!libro || !tabla || tabla.columnas.length === 0) {
       avisar(null);
       return;
     }
-    avisar({ tabla: leerHoja(libro, hoja, filaEnc), nombre: sinExtension(libro.nombre) });
-  }, [libro, hoja, filaEnc]);
+    avisar({ tabla, nombre: sinExtension(libro.nombre) });
+  }, [libro, tabla]);
 
   async function abrir(archivos: File[]) {
     setError(null);
     setCargando(true);
     try {
       const l = await leerArchivo(archivos[0]);
-      if (!l.hojas.length) throw new Error("El archivo no tiene hojas.");
       setLibro(l);
       setHoja(l.hojas[0]);
       setFilaEnc(1);
     } catch (e) {
-      setError(`No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}`);
+      setError(`«${archivos[0].name}» ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCargando(false);
     }
@@ -111,58 +122,61 @@ export function CargaTabla({
     return (
       <div className="space-y-2">
         <ZonaArchivos onArchivos={abrir} texto={texto} />
-        {cargando && <p className="text-sm text-suave">Leyendo…</p>}
+        {cargando && <p className="text-sm text-suave">Leyendo… Un archivo grande puede tardar unos segundos.</p>}
         {error && <p className="text-sm text-aviso">{error}</p>}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3 text-sm">
-      <div className="min-w-0 flex-1">
-        <span className="mb-1 block text-suave">Archivo</span>
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium" title={libro.nombre}>
-            {libro.nombre}
-          </span>
-          <button
-            type="button"
-            className="shrink-0 text-xs text-acento hover:underline"
-            onClick={() => {
-              setLibro(null);
-              setHoja("");
-            }}
-          >
-            Cambiar
-          </button>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end gap-3 text-sm">
+        <div className="min-w-0 flex-1">
+          <span className="mb-1 block text-suave">Archivo</span>
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium" title={libro.nombre}>
+              {libro.nombre}
+            </span>
+            <button
+              type="button"
+              className="shrink-0 text-xs text-acento hover:underline"
+              onClick={() => {
+                setLibro(null);
+                setHoja("");
+              }}
+            >
+              Cambiar
+            </button>
+          </div>
         </div>
-      </div>
-      {libro.hojas.length > 1 && (
+        {libro.hojas.length > 1 && (
+          <label className="block">
+            <span className="mb-1 block text-suave">Hoja</span>
+            <select
+              value={hoja}
+              onChange={(e) => setHoja(e.target.value)}
+              className="rounded-lg border border-borde bg-fondo px-3 py-2 outline-none focus:border-acento"
+            >
+              {libro.hojas.map((h) => (
+                <option key={h}>{h}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="block">
-          <span className="mb-1 block text-suave">Hoja</span>
-          <select
-            value={hoja}
-            onChange={(e) => setHoja(e.target.value)}
-            className="rounded-lg border border-borde bg-fondo px-3 py-2 outline-none focus:border-acento"
-          >
-            {libro.hojas.map((h) => (
-              <option key={h}>{h}</option>
-            ))}
-          </select>
+          <span className="mb-1 block text-suave" title="Si el Excel tiene títulos arriba, indica en qué fila están los encabezados">
+            Encabezados en la fila
+          </span>
+          <input
+            type="number"
+            min={1}
+            value={filaEnc}
+            onChange={(e) => setFilaEnc(Math.max(1, Number(e.target.value) || 1))}
+            className="w-24 rounded-lg border border-borde bg-fondo px-3 py-2 outline-none focus:border-acento"
+          />
         </label>
-      )}
-      <label className="block">
-        <span className="mb-1 block text-suave" title="Si el Excel tiene títulos arriba, indica en qué fila están los encabezados">
-          Encabezados en la fila
-        </span>
-        <input
-          type="number"
-          min={1}
-          value={filaEnc}
-          onChange={(e) => setFilaEnc(Math.max(1, Number(e.target.value) || 1))}
-          className="w-24 rounded-lg border border-borde bg-fondo px-3 py-2 outline-none focus:border-acento"
-        />
-      </label>
+      </div>
+      {problema && <p className="text-sm text-aviso">{problema}</p>}
     </div>
   );
 }

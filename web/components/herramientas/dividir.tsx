@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CargaTabla, type TablaCargada } from "@/components/carga";
-import { Aviso, Boton, Interruptor, Paso, Segmentado, Selector, Vista } from "@/components/ui";
+import { Aviso, Boton, Interruptor, Paso, Segmentado, Selector, useDescarga, Vista } from "@/components/ui";
 import { descargarExcel, descargarZip } from "@/lib/archivo";
 import { dividirPorColumna } from "@/lib/herramientas/dividir";
 
@@ -10,6 +10,8 @@ type Salida = "hojas" | "zip-xlsx" | "zip-csv";
 
 /** Más de esto y probablemente se eligió la columna equivocada (un ID, una fecha). */
 const MUCHAS_PARTES = 200;
+/** Fichas que se pintan para elegir la vista previa: miles de botones congelan la página. */
+const FICHAS_VISIBLES = 300;
 
 export function Dividir() {
   const [datos, setDatos] = useState<TablaCargada | null>(null);
@@ -18,24 +20,21 @@ export function Dividir() {
   const [quitarColumna, setQuitarColumna] = useState(false);
   const [salida, setSalida] = useState<Salida>("hojas");
   const [vista, setVista] = useState(0);
-  const [generando, setGenerando] = useState(false);
+  const { generando, error, correr } = useDescarga();
 
   const partes = useMemo(
     () => (datos && columna ? dividirPorColumna(datos.tabla, columna, { ordenar, quitarColumna }) : []),
     [datos, columna, ordenar, quitarColumna],
   );
 
-  async function descargar() {
+  function descargar() {
     if (!datos) return;
-    setGenerando(true);
-    try {
+    correr(async () => {
       const lista = partes.map((p) => ({ nombre: p.valor, tabla: p.tabla }));
       const nombre = `${datos.nombre}_por_${columna}`;
       if (salida === "hojas") descargarExcel(lista, nombre);
       else await descargarZip(lista, salida === "zip-xlsx" ? "xlsx" : "csv", nombre);
-    } finally {
-      setGenerando(false);
-    }
+    });
   }
 
   return (
@@ -97,13 +96,14 @@ export function Dividir() {
           }
         >
           <div className="space-y-4">
+            {error && <Aviso>{error}</Aviso>}
             {partes.length > MUCHAS_PARTES && (
               <Aviso>
                 La columna «{columna}» genera {partes.length} partes. ¿Seguro que es la columna correcta?
               </Aviso>
             )}
             <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
-              {partes.map((p, i) => (
+              {partes.slice(0, FICHAS_VISIBLES).map((p, i) => (
                 <button
                   key={p.valor}
                   type="button"
@@ -115,6 +115,11 @@ export function Dividir() {
                   {p.valor} <span className="opacity-70">({p.tabla.filas.length.toLocaleString("es-PE")})</span>
                 </button>
               ))}
+              {partes.length > FICHAS_VISIBLES && (
+                <span className="px-1 py-1 text-xs text-suave">
+                  y {(partes.length - FICHAS_VISIBLES).toLocaleString("es-PE")} más (van todas en la descarga)
+                </span>
+              )}
             </div>
             {partes[vista] && <Vista key={vista} tabla={partes[vista].tabla} filas={20} />}
           </div>

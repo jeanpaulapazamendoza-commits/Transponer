@@ -27,8 +27,15 @@ export function aTexto(v: Celda | undefined): string {
   if (v === null || v === undefined) return "";
   if (v instanceof Date) {
     if (Number.isNaN(v.getTime())) return "";
-    const iso = v.toISOString();
-    return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso;
+    // SheetJS entrega las fechas en hora local (la medianoche de Lima son las
+    // 05:00 UTC), así que se leen con la hora local y no con toISOString().
+    // Se redondea al segundo: la hora de Excel es un decimal y llega como 14:29:59.999.
+    const d = new Date(Math.round(v.getTime() / 1000) * 1000);
+    const p = (n: number) => String(n).padStart(2, "0");
+    const fecha = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const [h, m, s] = [d.getHours(), d.getMinutes(), d.getSeconds()];
+    if (!h && !m && !s) return fecha;
+    return `${fecha} ${p(h)}:${p(m)}${s ? `:${p(s)}` : ""}`;
   }
   if (typeof v === "number") {
     // 123.0 -> "123", evita ruido de coma flotante (0.1+0.2)
@@ -54,10 +61,24 @@ export function nombresUnicos(crudos: unknown[]): string[] {
   });
 }
 
+/**
+ * Devuelve `nombre` si nadie lo usa, o "nombre (2)", "nombre (3)"… si ya
+ * está tomado, y lo aparta en `usados`. Para las columnas que crea una
+ * herramienta: si el archivo ya trae una "Valor", la nueva no la pisa.
+ */
+export function nombreLibre(nombre: string, usados: Set<string>): string {
+  let n = nombre;
+  let i = 2;
+  while (usados.has(n)) n = `${nombre} (${i++})`;
+  usados.add(n);
+  return n;
+}
+
 /** Construye una tabla a partir de filas en forma de matriz (la primera es el encabezado). */
 export function desdeMatriz(matriz: unknown[][]): Tabla {
   if (matriz.length === 0) return { columnas: [], filas: [] };
-  const ancho = Math.max(...matriz.map((f) => f.length));
+  // Sin Math.max(...): con cientos de miles de filas revienta la pila.
+  const ancho = matriz.reduce((m, f) => Math.max(m, f.length), 0);
   const encabezado = Array.from({ length: ancho }, (_, i) => matriz[0][i]);
   const columnas = nombresUnicos(encabezado);
   const filas = matriz.slice(1).map((crudo) => {

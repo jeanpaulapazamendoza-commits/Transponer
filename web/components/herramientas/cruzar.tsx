@@ -100,7 +100,7 @@ export function Cruzar() {
               ]}
             />
             <div className="grid gap-3 sm:grid-cols-2">
-              <Interruptor activo={normalizar} onCambio={setNormalizar} ayuda="«ABC-1 » cruza con «abc-1»">
+              <Interruptor activo={normalizar} onCambio={setNormalizar} ayuda="«ABC-1 » cruza con «abc-1», y el texto «06/05/2026» con la fecha 6 de mayo.">
                 Ignorar mayúsculas y espacios en la clave
               </Interruptor>
               <Interruptor activo={ceros} onCambio={setCeros} ayuda="«00123» cruza con 123. Útil para códigos y DNI.">

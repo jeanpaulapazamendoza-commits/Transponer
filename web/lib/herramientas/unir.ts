@@ -3,7 +3,7 @@
  * alineando las columnas por nombre aunque vengan en otro orden.
  */
 
-import type { Fila, Tabla } from "../tabla";
+import { nombreLibre, type Fila, type Tabla } from "../tabla";
 
 export interface Entrada {
   /** "ventas_enero.xlsx › Hoja1" — se usa en la columna de origen y en el reporte */
@@ -50,6 +50,8 @@ export function unirTablas(entradas: Entrada[], op: OpcionesUnir) {
     claves = claves.filter((k) => clavesPorEntrada.every((m) => m.has(k)));
   }
   const nombres = claves.map((k) => nombrePorClave.get(k)!);
+  // Si los archivos ya traen una columna "Origen", la del origen sale "Origen (2)".
+  const origen = op.columnaOrigen ? nombreLibre(op.columnaOrigen, new Set(nombres)) : null;
 
   const filas: Fila[] = [];
   const reporte: ReporteUnir[] = [];
@@ -57,7 +59,7 @@ export function unirTablas(entradas: Entrada[], op: OpcionesUnir) {
     const m = clavesPorEntrada[i];
     for (const f of e.tabla.filas) {
       const nueva: Fila = {};
-      if (op.columnaOrigen) nueva[op.columnaOrigen] = e.origen;
+      if (origen) nueva[origen] = e.origen;
       claves.forEach((k, j) => {
         const orig = m.get(k);
         nueva[nombres[j]] = orig === undefined ? null : (f[orig] ?? null);
@@ -74,6 +76,6 @@ export function unirTablas(entradas: Entrada[], op: OpcionesUnir) {
     });
   });
 
-  const columnas = op.columnaOrigen ? [op.columnaOrigen, ...nombres] : nombres;
+  const columnas = origen ? [origen, ...nombres] : nombres;
   return { tabla: { columnas, filas } as Tabla, reporte };
 }
