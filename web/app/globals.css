@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --fondo: #f6f7f5;
+  --tarjeta: #ffffff;
+  --borde: #e2e5e0;
+  --texto: #1c2420;
+  --suave: #5f6b64;
+  --acento: #107c41;
+  --acento-suave: #e6f3ec;
+  --aviso: #9a5b00;
+  --aviso-suave: #fff4e0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #121614;
+    --tarjeta: #1a201d;
+    --borde: #2c3530;
+    --texto: #e8ece9;
+    --suave: #9aa79f;
+    --acento: #3fbf7a;
+    --acento-suave: #173325;
+    --aviso: #f0b45a;
+    --aviso-suave: #33270f;
+  }
+}
+
+@theme inline {
+  --color-fondo: var(--fondo);
+  --color-tarjeta: var(--tarjeta);
+  --color-borde: var(--borde);
+  --color-texto: var(--texto);
+  --color-suave: var(--suave);
+  --color-acento: var(--acento);
+  --color-acento-suave: var(--acento-suave);
+  --color-aviso: var(--aviso);
+  --color-aviso-suave: var(--aviso-suave);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--acento);
+}

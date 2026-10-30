@@ -1,5 +1,23 @@
 # 🔄 Transpositor dinámico de archivos
 
+> **Hay una versión nueva en [`web/`](web/)**: una web en Next.js con cinco
+> herramientas (transponer, unir archivos, cruzar tablas, limpiar y
+> deduplicar, dividir por columna) que procesa todo en el navegador, sin subir
+> los archivos a ningún servidor. Se despliega en Vercel con *Root Directory*
+> = `web`. La app de Streamlit de abajo sigue funcionando igual y no depende
+> de esa carpeta.
+>
+> ```bash
+> cd web
+> npm install
+> npm run dev     # http://localhost:3000
+> npm test        # pruebas de la lógica de cada herramienta
+> ```
+>
+> La lógica vive en `web/lib/herramientas/` (sin dependencias de pantalla ni
+> de Excel) y la lectura/escritura de archivos en `web/lib/archivo.ts`
+> (SheetJS + JSZip).
+
 App web hecha con Streamlit para subir cualquier Excel/CSV en **formato ancho**
 y convertirlo a **formato largo** (despivotar / transponer) sin perder datos.
 
